@@ -21,6 +21,13 @@ app.add_middleware(SessionMiddleware, secret_key="your-secret-key")
 models.Base.metadata.create_all(bind=engine)
 
 
+def get_current_user_id(request: Request) -> int:
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return user_id
+
+
 @app.post("/register/", response_model=schemas.UserResponse)
 def register_user(user: schemas.UserCreate,
                   db: Session = Depends(get_db)):
@@ -57,11 +64,8 @@ def logout(request: Request):
 # Возвращает данные юзера, его теги и задачи.
 @app.get("/users/me/", response_model=schemas.UserResponseWithTasks)
 def read_users_me(request: Request,
-                  db: Session = Depends(get_db)):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401,
-                            detail="Not authenticated")
+                  db: Session = Depends(get_db),
+                  user_id: int = Depends(get_current_user_id)):
     user = crud.get_user_by_id(db, user_id)
     if not user:
         raise HTTPException(status_code=404,
@@ -81,11 +85,8 @@ def read_users_me(request: Request,
 @app.put("/users/me/edit_password/", response_model=schemas.UserResponse)
 def update_users_password(request: Request,
                           password_update: schemas.PasswordUpdate,
-                          db: Session = Depends(get_db)):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401,
-                            detail="Not authenticated")
+                          db: Session = Depends(get_db),
+                          user_id: int = Depends(get_current_user_id)):
     user = crud.get_user_by_id(db, user_id)
     if user is None:
         raise HTTPException(status_code=404,
@@ -100,11 +101,8 @@ def update_users_password(request: Request,
 @app.put("/users/me/edit/", response_model=schemas.UserResponse)
 def update_users(request: Request,
                  user_update: schemas.UserUpdate,
-                 db: Session = Depends(get_db)):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401,
-                            detail="Not authenticated")
+                 db: Session = Depends(get_db),
+                 user_id: int = Depends(get_current_user_id)):
     user = crud.get_user_by_id(db, user_id)
     if user is None:
         raise HTTPException(status_code=404,
@@ -118,11 +116,8 @@ def update_users(request: Request,
 # Получить все теги пользователя.
 @app.get("/tags/", response_model=list[schemas.GoalResponse])
 def get_tags(request: Request,
-             db: Session = Depends(get_db)):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401,
-                            detail="Not authenticated")
+             db: Session = Depends(get_db),
+             user_id: int = Depends(get_current_user_id)):
     goals = crud.get_user_goals(db, user_id)
     return goals
 
@@ -131,11 +126,8 @@ def get_tags(request: Request,
 @app.post("/tags/", response_model=list[schemas.GoalResponse])
 def create_tags(request: Request,
                 tag: schemas.GoalCreate,
-                db: Session = Depends(get_db)):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401,
-                            detail="Not authenticated")
+                db: Session = Depends(get_db),
+                user_id: int = Depends(get_current_user_id)):
     crud.create_goal(db=db, goal=tag, user_id=user_id)
     tags = crud.get_user_goals(db, user_id)
     return tags
@@ -145,11 +137,8 @@ def create_tags(request: Request,
 @app.delete("/tags/{tag_id}/", response_model=list[schemas.GoalResponse])
 def delete_tags(request: Request,
                 tag_id,
-                db: Session = Depends(get_db)):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401,
-                            detail="Not authenticated")
+                db: Session = Depends(get_db),
+                user_id: int = Depends(get_current_user_id)):
     crud.delete_goal(db=db, goal_id=tag_id)
     tags = crud.get_user_goals(db, user_id)
     return tags
@@ -159,11 +148,8 @@ def delete_tags(request: Request,
 @app.get("/tags/{tag_id}/", response_model=list[schemas.TaskResponse])
 def get_tasks_by_tag(request: Request,
                      tag_id: int,
-                     db: Session = Depends(get_db)):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401,
-                            detail="Not authenticated")
+                     db: Session = Depends(get_db),
+                     user_id: int = Depends(get_current_user_id)):
     tasks = crud.get_user_tasks_by_tag(db, user_id, tag_id)
     return tasks
 
@@ -172,11 +158,8 @@ def get_tasks_by_tag(request: Request,
 @app.post("/tasks/", response_model=schemas.TaskResponse)
 def get_tasks(request: Request,
               task: schemas.TaskBase,
-              db: Session = Depends(get_db)):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401,
-                            detail="Not authenticated")
+              db: Session = Depends(get_db),
+              user_id: int = Depends(get_current_user_id)):
     task = crud.create_task(db, task, user_id)
     return task
 
@@ -184,12 +167,9 @@ def get_tasks(request: Request,
 # Возвращает все задачи на текущий день
 @app.get("/tasks/today/", response_model=list[schemas.TaskResponse])
 def get_today_tasks(request: Request,
-                    db: Session = Depends(get_db)):
+                    db: Session = Depends(get_db),
+                    user_id: int = Depends(get_current_user_id)):
     today = date.today()
-    user_id = request.session.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401,
-                            detail="Not authenticated")
     tasks = crud.get_user_tasks_by_date(db, user_id, today)
     return tasks
 
@@ -198,12 +178,9 @@ def get_today_tasks(request: Request,
 @app.get("/tasks/period/", response_model=list[schemas.TaskResponse])
 def get_pediod_tasks(request: Request,
                      db: Session = Depends(get_db),
+                     user_id: int = Depends(get_current_user_id),
                      start_day: date = Query(),
                      end_day: date = Query()):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401,
-                            detail="Not authenticated")
     tasks = crud.get_user_tasks_by_period(db, user_id, start_day, end_day)
     return tasks
 
@@ -212,11 +189,8 @@ def get_pediod_tasks(request: Request,
 @app.get("/tasks/{task_id}/", response_model=schemas.TaskResponse)
 def get_task_by_id(request: Request,
                    task_id: int,
-                   db: Session = Depends(get_db)):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401,
-                            detail="Not authenticated")
+                   db: Session = Depends(get_db),
+                   user_id: int = Depends(get_current_user_id)):
     task = crud.get_user_tasks_by_id(db, task_id)
     if not task:
         raise HTTPException(status_code=404,
@@ -229,11 +203,8 @@ def get_task_by_id(request: Request,
 def update_task(request: Request,
                 task_id: int,
                 task_update: schemas.TaskUpdate,
-                db: Session = Depends(get_db)):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401,
-                            detail="Not authenticated")
+                db: Session = Depends(get_db),
+                user_id: int = Depends(get_current_user_id)):
     task = crud.update_task(db, task_id, task_update)
     return task
 
@@ -242,11 +213,8 @@ def update_task(request: Request,
 @app.delete("/tasks/{task_id}/")
 def delete_task(request: Request,
                 task_id: int,
-                db: Session = Depends(get_db)):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401,
-                            detail="Not authenticated")
+                db: Session = Depends(get_db),
+                user_id: int = Depends(get_current_user_id)):
     task = crud.delete_task(db, task_id)
     if task is None:
         raise HTTPException(status_code=404,
