@@ -1,10 +1,10 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Request
+from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 from .database import engine, get_db
 from . import models, crud, utils, schemas
-from datetime import date
+from datetime import date, timezone
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="your-secret-key")
@@ -181,6 +181,33 @@ def get_tasks(request: Request,
     return task
 
 
+# Возвращает все задачи на текущий день
+@app.get("/tasks/today/", response_model=list[schemas.TaskResponse])
+def get_today_tasks(request: Request,
+                    db: Session = Depends(get_db)):
+    today = date.today()
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401,
+                            detail="Not authenticated")
+    tasks = crud.get_user_tasks_by_date(db, user_id, today)
+    return tasks
+
+
+# Возвращает все задачи за указанный период
+@app.get("/tasks/period/", response_model=list[schemas.TaskResponse])
+def get_pediod_tasks(request: Request,
+                     db: Session = Depends(get_db),
+                     start_day: date = Query(),
+                     end_day: date = Query()):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401,
+                            detail="Not authenticated")
+    tasks = crud.get_user_tasks_by_period(db, user_id, start_day, end_day)
+    return tasks
+
+
 # Страница задачи, возвращает задачу.
 @app.get("/tasks/{task_id}/", response_model=schemas.TaskResponse)
 def get_task_by_id(request: Request,
@@ -225,9 +252,3 @@ def delete_task(request: Request,
         raise HTTPException(status_code=404,
                             detail="Task not found")
     return {"message": "Task deleted"}
-
-
-
-# @app.get("/tasks/today/")
-# def get_today_task(request: Request,
-#                    date)

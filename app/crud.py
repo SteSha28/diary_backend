@@ -55,6 +55,17 @@ def get_user_tasks_by_date(db: Session, user_id: int, task_date: date):
     )
 
 
+def get_user_tasks_by_period(db: Session, user_id: int,
+                             start_date: date, end_date: date):
+    return (
+        db.query(models.Task)
+        .filter(models.Task.user_id == user_id,
+                models.Task.due_date >= start_date,
+                models.Task.due_date <= end_date)
+        .all()
+    )
+
+
 def get_user_active_tasks(db: Session, user_id: int):
     return (
         db.query(models.Task)
