@@ -26,7 +26,7 @@ def register_user(user: schemas.UserCreate,
     return new_user
 
 
-@app.post("/login/")
+@app.post("/login/", response_model=schemas.UserResponse)
 def login(request: Request,
           form_data: OAuth2PasswordRequestForm = Depends(),
           db: Session = Depends(get_db)):
@@ -36,7 +36,7 @@ def login(request: Request,
         raise HTTPException(status_code=401,
                             detail="Incorrect email or password")
     request.session["user_id"] = user.id
-    return {"message": "Login successful"}
+    return user
 
 
 @app.post("/logout/")
@@ -45,7 +45,8 @@ def logout(request: Request):
     return {"message": "Logout successful"}
 
 
-@app.get("/users/me/", response_model=schemas.UserResponse)
+# Возвращает данные юзера, его теги и задачи
+@app.get("/users/me/", response_model=schemas.UserResponseWithTasks)
 def read_users_me(request: Request,
                   db: Session = Depends(get_db)):
     user_id = request.session.get("user_id")
@@ -56,7 +57,15 @@ def read_users_me(request: Request,
     if not user:
         raise HTTPException(status_code=404,
                             detail="User not found")
-    return user
+    tags = crud.get_user_goals(db, user_id)
+    tasks = crud.get_user_active_tasks(db, user_id)
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "tags": tags,
+        "tasks": tasks,
+    }
 
 
 @app.put("/users/me/edit_password/", response_model=schemas.UserResponse)
@@ -96,9 +105,9 @@ def update_users(request: Request,
 
 
 # Получить все цели пользователя
-@app.get("/goals/", response_model=list[schemas.GoalResponse])
-def get_goals(request: Request,
-              db: Session = Depends(get_db)):
+@app.get("/tags/", response_model=list[schemas.GoalResponse])
+def get_tags(request: Request,
+             db: Session = Depends(get_db)):
     user_id = request.session.get("user_id")
     if not user_id:
         raise HTTPException(status_code=401,
@@ -107,14 +116,40 @@ def get_goals(request: Request,
     return goals
 
 
-# Получить все задачи пользователя на определённую дату
-@app.get("/tasks/", response_model=list[schemas.TaskResponse])
-def get_tasks(request: Request,
-              date: date,
-              db: Session = Depends(get_db)):
+@app.post("/tags/", response_model=list[schemas.GoalResponse])
+def create_tags(request: Request,
+                tag: schemas.GoalCreate,
+                db: Session = Depends(get_db)):
     user_id = request.session.get("user_id")
     if not user_id:
         raise HTTPException(status_code=401,
                             detail="Not authenticated")
-    tasks = crud.get_user_tasks_by_date(db, user_id, date)
-    return tasks
+    crud.create_goal(db=db, goal=tag, user_id=user_id)
+    tags = crud.get_user_goals(db, user_id)
+    return tags
+
+
+@app.delete("/tags/", response_model=list[schemas.GoalResponse])
+def delete_tags(request: Request,
+                tag_id,
+                db: Session = Depends(get_db)):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401,
+                            detail="Not authenticated")
+    crud.delete_goal(db=db, goal_id=tag_id)
+    tags = crud.get_user_goals(db, user_id)
+    return tags
+
+
+# Получить все задачи пользователя на определённую дату
+# @app.get("/tasks/", response_model=list[schemas.TaskResponse])
+# def get_tasks(request: Request,
+#               date: date,
+#               db: Session = Depends(get_db)):
+#     user_id = request.session.get("user_id")
+#     if not user_id:
+#         raise HTTPException(status_code=401,
+#                             detail="Not authenticated")
+#     tasks = crud.get_user_tasks_by_date(db, user_id, date)
+#     return tasks

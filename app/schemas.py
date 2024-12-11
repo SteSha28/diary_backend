@@ -31,7 +31,7 @@ class UserUpdate(BaseModel):
         orm_mode = True
 
 
-# Цель
+#  Mетки
 class GoalBase(BaseModel):
     title: str
 
@@ -44,6 +44,10 @@ class GoalResponse(GoalBase):
         orm_mode = True
 
 
+class GoalCreate(GoalBase):
+    description: Optional[str] = None
+
+
 # Задача
 class TaskBase(BaseModel):
     title: str
@@ -54,6 +58,15 @@ class TaskBase(BaseModel):
 class TaskResponse(TaskBase):
     id: int
     user_id: int
+
+    class Config:
+        orm_mode = True
+
+
+class UserResponseWithTasks(UserBase):
+    id: int
+    tags: list[GoalResponse]
+    tasks: list[TaskResponse]
 
     class Config:
         orm_mode = True
