@@ -46,14 +46,14 @@ class Task(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
-    due_date = Column(Date, nullable=True)  # Дата выполнения задачи (может быть пустой)
-    is_completed = Column(Integer, default=0)  # Флаг выполнения задачи
+    due_date = Column(Date, nullable=True)
+    is_completed = Column(Integer, default=0)
     user_id = Column(Integer,
                      ForeignKey("users.id"),
                      nullable=False)
     goal_id = Column(Integer,
                      ForeignKey("goals.id"),
-                     nullable=True)  # Связь с целью (опционально)
+                     nullable=True)
 
     user = relationship("User",
                         back_populates="tasks")

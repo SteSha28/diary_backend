@@ -9,6 +9,15 @@ from datetime import date
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="your-secret-key")
 
+# Настройка CORS
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["http://localhost:3000"],  # Указываем адрес фронтенда React
+#     allow_credentials=True,
+#     allow_methods=["*"],  # Разрешаем все методы
+#     allow_headers=["*"],  # Разрешаем все заголовки
+# )
+
 models.Base.metadata.create_all(bind=engine)
 
 
@@ -45,7 +54,7 @@ def logout(request: Request):
     return {"message": "Logout successful"}
 
 
-# Возвращает данные юзера, его теги и задачи
+# Возвращает данные юзера, его теги и задачи.
 @app.get("/users/me/", response_model=schemas.UserResponseWithTasks)
 def read_users_me(request: Request,
                   db: Session = Depends(get_db)):
@@ -68,6 +77,7 @@ def read_users_me(request: Request,
     }
 
 
+# Редактирование пароля, возвращает юзера.
 @app.put("/users/me/edit_password/", response_model=schemas.UserResponse)
 def update_users_password(request: Request,
                           password_update: schemas.PasswordUpdate,
@@ -86,6 +96,7 @@ def update_users_password(request: Request,
     return user
 
 
+# Редактирование юзера, возвращает юзера.
 @app.put("/users/me/edit/", response_model=schemas.UserResponse)
 def update_users(request: Request,
                  user_update: schemas.UserUpdate,
@@ -104,7 +115,7 @@ def update_users(request: Request,
     return user
 
 
-# Получить все цели пользователя
+# Получить все теги пользователя.
 @app.get("/tags/", response_model=list[schemas.GoalResponse])
 def get_tags(request: Request,
              db: Session = Depends(get_db)):
@@ -116,6 +127,7 @@ def get_tags(request: Request,
     return goals
 
 
+# Создать тег, возвращает все теги.
 @app.post("/tags/", response_model=list[schemas.GoalResponse])
 def create_tags(request: Request,
                 tag: schemas.GoalCreate,
@@ -129,7 +141,8 @@ def create_tags(request: Request,
     return tags
 
 
-@app.delete("/tags/", response_model=list[schemas.GoalResponse])
+# Удалить тег, возвращает все теги.
+@app.delete("/tags/{tag_id}/", response_model=list[schemas.GoalResponse])
 def delete_tags(request: Request,
                 tag_id,
                 db: Session = Depends(get_db)):
@@ -142,14 +155,79 @@ def delete_tags(request: Request,
     return tags
 
 
-# Получить все задачи пользователя на определённую дату
-# @app.get("/tasks/", response_model=list[schemas.TaskResponse])
-# def get_tasks(request: Request,
-#               date: date,
-#               db: Session = Depends(get_db)):
-#     user_id = request.session.get("user_id")
-#     if not user_id:
-#         raise HTTPException(status_code=401,
-#                             detail="Not authenticated")
-#     tasks = crud.get_user_tasks_by_date(db, user_id, date)
-#     return tasks
+# Получить все задачи по тегу.
+@app.get("/tags/{tag_id}/", response_model=list[schemas.TaskResponse])
+def get_tasks_by_tag(request: Request,
+                     tag_id: int,
+                     db: Session = Depends(get_db)):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401,
+                            detail="Not authenticated")
+    tasks = crud.get_user_tasks_by_tag(db, user_id, tag_id)
+    return tasks
+
+
+# Создать задачу, возвращает созданную задачу
+@app.post("/tasks/", response_model=schemas.TaskResponse)
+def get_tasks(request: Request,
+              task: schemas.TaskBase,
+              db: Session = Depends(get_db)):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401,
+                            detail="Not authenticated")
+    task = crud.create_task(db, task, user_id)
+    return task
+
+
+# Страница задачи, возвращает задачу.
+@app.get("/tasks/{task_id}/", response_model=schemas.TaskResponse)
+def get_task_by_id(request: Request,
+                   task_id: int,
+                   db: Session = Depends(get_db)):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401,
+                            detail="Not authenticated")
+    task = crud.get_user_tasks_by_id(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404,
+                            detail="Task not found")
+    return task
+
+
+# Редактирование задачи, возвращает задачу.
+@app.put("/tasks/{task_id}/", response_model=schemas.TaskResponse)
+def update_task(request: Request,
+                task_id: int,
+                task_update: schemas.TaskUpdate,
+                db: Session = Depends(get_db)):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401,
+                            detail="Not authenticated")
+    task = crud.update_task(db, task_id, task_update)
+    return task
+
+
+# Удаление задачи, возвращает сообщение.
+@app.delete("/tasks/{task_id}/")
+def delete_task(request: Request,
+                task_id: int,
+                db: Session = Depends(get_db)):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401,
+                            detail="Not authenticated")
+    task = crud.delete_task(db, task_id)
+    if task is None:
+        raise HTTPException(status_code=404,
+                            detail="Task not found")
+    return {"message": "Task deleted"}
+
+
+
+# @app.get("/tasks/today/")
+# def get_today_task(request: Request,
+#                    date)

@@ -53,14 +53,20 @@ class TaskBase(BaseModel):
     title: str
     due_date: Optional[date] = None
     goal_id: Optional[int] = None
+    description: Optional[str] = None
 
 
 class TaskResponse(TaskBase):
     id: int
     user_id: int
+    is_completed: int
 
     class Config:
         orm_mode = True
+
+
+class TaskUpdate(TaskBase):
+    is_completed: Optional[int] = 0
 
 
 class UserResponseWithTasks(UserBase):
