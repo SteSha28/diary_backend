@@ -1,22 +1,14 @@
 from datetime import datetime, timedelta
-from jose import JWTError, jwt
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+from jwt import encode, decode
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
+from fastapi import Depends
 
-SECRET_KEY = "coWNCIONJND834ni942b4u8b484v495h58"
+SECRET_KEY = "coWNCIONJND834ni942b4u8b484v495h58MIIEpAIBAAKCAQEAwhvqCC+37A+"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 
-def create_access_token(data: dict):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+def create_jwt_token(data: dict):
+    return encode(data, SECRET_KEY, algorithm=ALGORITHM)
 
-
-def verify_access_token(token: str):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
-    except JWTError:
-        return None

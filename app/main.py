@@ -1,24 +1,33 @@
 from fastapi import FastAPI, Depends, HTTPException, Query, Request
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from starlette.middleware.sessions import SessionMiddleware
 from .database import engine, get_db
 from . import models, crud, utils, schemas
-from datetime import date, timezone
+from datetime import date
+from .auth import create_jwt_token
+from jwt import decode
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
+from typing import Annotated
+
+
+SECRET_KEY = "coWNCIONJND834ni942b4u8b484v495h58"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 app = FastAPI()
-app.add_middleware(SessionMiddleware, secret_key="your-secret-key")
-
-# Настройка CORS
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["http://localhost:3000"],  # Указываем адрес фронтенда React
-#     allow_credentials=True,
-#     allow_methods=["*"],  # Разрешаем все методы
-#     allow_headers=["*"],  # Разрешаем все заголовки
-# )
 
 models.Base.metadata.create_all(bind=engine)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+
+def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+    try:
+        payload = decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload.get("id")
+    except ExpiredSignatureError:
+        pass
+    except InvalidTokenError:
+        pass
 
 
 def get_current_user_id(request: Request) -> int:
@@ -32,17 +41,19 @@ def get_current_user_id(request: Request) -> int:
 def register_user(user: schemas.UserCreate,
                   db: Session = Depends(get_db)):
     existing_user = crud.get_user_by_email(db, user.email)
+    print("1")
     if existing_user:
         raise HTTPException(status_code=400,
                             detail="Email already registered")
     hashed_password = utils.hash_password(user.password)
+    print("2")
     new_user = crud.create_user(db, name=user.name,
                                 email=user.email,
                                 password=hashed_password)
     return new_user
 
 
-@app.post("/login/", response_model=schemas.UserResponse)
+@app.post("/login/")  # response_model=schemas.UserResponse
 def login(request: Request,
           form_data: OAuth2PasswordRequestForm = Depends(),
           db: Session = Depends(get_db)):
@@ -51,27 +62,26 @@ def login(request: Request,
                                              user.hashed_password):
         raise HTTPException(status_code=401,
                             detail="Incorrect email or password")
-    request.session["user_id"] = user.id
-    return user
+    return {"Authorization": create_jwt_token({"id": user.id}),
+            "token_type": "Bearer"}
 
 
-@app.post("/logout/")
-def logout(request: Request):
-    request.session.clear()
-    return {"message": "Logout successful"}
+# @app.post("/logout")
+# def logout(request: Request):
+#     request.session.clear()
+#     return {"message": "Logout successful"}
 
 
 # Возвращает данные юзера, его теги и задачи.
 @app.get("/users/me/", response_model=schemas.UserResponseWithTasks)
-def read_users_me(request: Request,
-                  db: Session = Depends(get_db),
-                  user_id: int = Depends(get_current_user_id)):
-    user = crud.get_user_by_id(db, user_id)
-    if not user:
+def read_users_me(db: Session = Depends(get_db),
+                  current_user: int = Depends(get_current_user)):
+    user = crud.get_user_by_id(db, current_user)
+    if not current_user:
         raise HTTPException(status_code=404,
                             detail="User not found")
-    tags = crud.get_user_goals(db, user_id)
-    tasks = crud.get_user_active_tasks(db, user_id)
+    tags = crud.get_user_goals(db, current_user)
+    tasks = crud.get_user_active_tasks(db, current_user)
     return {
         "id": user.id,
         "name": user.name,
@@ -82,19 +92,18 @@ def read_users_me(request: Request,
 
 
 # Редактирование пароля, возвращает юзера.
-@app.put("/users/me/edit_password/", response_model=schemas.UserResponse)
-def update_users_password(request: Request,
-                          password_update: schemas.PasswordUpdate,
-                          db: Session = Depends(get_db),
-                          user_id: int = Depends(get_current_user_id)):
-    user = crud.get_user_by_id(db, user_id)
-    if user is None:
-        raise HTTPException(status_code=404,
-                            detail="User not found")
-    hashed_password = utils.hash_password(password_update.new_password)
-    user = crud.update_user_password(db=db, user_id=user_id,
-                                     new_password=hashed_password)
-    return user
+# @app.put("/users/me/edit_password/", response_model=schemas.UserResponse)
+# def update_users_password(password_update: schemas.PasswordUpdate,
+#                           db: Session = Depends(get_db),
+#                           current_user: int = Depends(get_user_from_token)):
+#     user = crud.get_user_by_id(db, current_user)
+#     if user is None:
+#         raise HTTPException(status_code=404,
+#                             detail="User not found")
+#     hashed_password = utils.hash_password(password_update.new_password)
+#     user = crud.update_user_password(db=db, user_id=current_user,
+#                                      new_password=hashed_password)
+#     return user
 
 
 # Редактирование юзера, возвращает юзера.
